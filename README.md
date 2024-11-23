@@ -3,9 +3,10 @@
 A coordinated surveillance system simulation implementing multiple autonomous agents for risk zone monitoring and threat detection.
 
 ## Team Members
-- [Name 1]
-- [Name 2]
-- [Name 3]
+- **Diego Alejandro Calvario Aceves A01642806**  
+- **Diego Rodríguez Romero A01741413**  
+- **Milan Alejandro De Alba Gómez A01637667**  
+- **Gonzalo Calderón Gil Leyva A01740008** 
 
 ## Project Overview
 This project addresses the challenge of coordinated patrolling in urban security environments. Through a multi-agent system simulation, we demonstrate how different surveillance entities collaborate to monitor risk zones, detect threats, and coordinate responses efficiently.
@@ -51,7 +52,6 @@ Simulated threat entity with:
 
 ## Environment Description
 - Grid-based simulation (20x20)
-- Multiple terrain types
 - Central landing station for drone
 - Dynamic risk zones
 - Real-time interaction space
@@ -88,15 +88,8 @@ The system implements FIPA-compliant communication protocols for:
 
 ### Documentation
 - Technical Documentation: [Link]
-- API Reference: [Link]
 - Installation Guide: [Link]
 
 ### Media
 - Demo Video: [Link]
 - Presentation: [Link]
-- Additional Resources: [Link]
-
-### Development
-- Source Code: [Link]
-- Development Guide: [Link]
-- Contributing Guidelines: [Link]
