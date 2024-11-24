@@ -96,3 +96,6 @@ The system implements FIPA-compliant communication protocols for:
 
 ### Unity Project and Server File
 - [Link to Drive](https://drive.google.com/drive/folders/1LwzeK-e7mb2bxrK4boZpVSBnVRqmc2fw?usp=sharing)
+
+### Team Composition
+- [Link to Drive](https://docs.google.com/document/d/1Up_nsI_3LVbfljp3XkVUJf1KqFE3RZiMI-q4zwXfATk/edit?usp=sharing)
