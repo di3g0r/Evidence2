@@ -1,21 +1,100 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import agentpy as ap
 import numpy as np
 import random
+from PIL import Image
+import io
+from ultralytics import YOLO
+import cv2
+from enum import Enum
+import queue
 
 app = Flask(__name__)
 
-class Drone(ap.Agent):
+class Protocol(Enum):
+    SURVEILLANCE = "SurveillanceProtocol"
+    CONTROL = "ControlProtocol"
+    ASSISTANCE = "AssistanceProtocol"
+    PURSUIT = "PursuitProtocol"
+    VISION = "VisionProtocol"
+
+class CommunicationAct(Enum):
+    INFORM_THREAT = "INFORM_THREAT"
+    ALERT_THREAT = "ALERT_THREAT"
+    REQUEST_CONTROL = "REQUEST_CONTROL"
+    ACCEPT_CONTROL = "ACCEPT_CONTROL"
+    REQUEST_ASSISTANCE = "REQUEST_ASSISTANCE"
+    COORDINATE_PURSUIT = "COORDINATE_PURSUIT"
+    REPORT_VISION = "REPORT_VISION"
+
+class Message:
+    def __init__(self, sender, receiver, protocol, comm_act, content):
+        self.sender = sender
+        self.sender_role = sender.current_role
+        self.receiver = receiver
+        self.receiver_role = receiver.current_role
+        self.protocol = protocol
+        self.comm_act = comm_act
+        self.content = content
+        self.timestamp = 0
+
+class CommunicatingAgent(ap.Agent):
+    def setup(self):
+        self.message_queue = queue.Queue()
+        self.sent_messages = []
+        self.roles = []
+        self.current_role = None
+        
+    def send_message(self, receiver, protocol, comm_act, content):
+        if protocol in self.supported_protocols and comm_act in self.supported_acts:
+            message = Message(self, receiver, protocol, comm_act, content)
+            self.sent_messages.append(message)
+            receiver.message_queue.put(message)
+            print(f"Agent {self.id} as {self.current_role} sent {comm_act.value} to Agent {receiver.id}")
+    
+    def process_messages(self):
+        while not self.message_queue.empty():
+            message = self.message_queue.get()
+            if message.protocol in self.supported_protocols:
+                self.handle_message(message)
+            else:
+                print(f"Agent {self.id} cannot handle protocol {message.protocol}")
+
+class Drone(CommunicatingAgent):
     def setup(self):
         """Initialize drone parameters"""
+        super().setup()
+        # Communication setup
+        self.roles = ["Surveillant", "Responder"]
+        self.current_role = "Surveillant"
+        self.supported_protocols = [Protocol.SURVEILLANCE, Protocol.CONTROL, Protocol.VISION]
+        self.supported_acts = [
+            CommunicationAct.INFORM_THREAT,
+            CommunicationAct.ACCEPT_CONTROL,
+            CommunicationAct.REPORT_VISION
+        ]
+        
+        # Original drone setup
         self.x, self.y = self.model.landing_station
-        self.height = 0  # At ground level
+        self.height = 0
         self.battery = 100
         self.is_flying = False
         self.is_controlled_by_security = False
         self.target_height = 5
-        self.height_step = 1  # Step for height adjustments
+        self.height_step = 1
         print(f"Drone {self.id} initialized at landing station ({self.x}, {self.y}).")
+
+    def handle_message(self, message):
+        if message.protocol == Protocol.CONTROL:
+            if message.comm_act == CommunicationAct.REQUEST_CONTROL:
+                self.current_role = "Responder"
+                self.is_controlled_by_security = message.content['control_status']
+                print(f"Drone {self.id} control status changed to: {self.is_controlled_by_security}")
+                
+        elif message.protocol == Protocol.SURVEILLANCE:
+            if message.comm_act == CommunicationAct.ALERT_THREAT:
+                target_pos = message.content['location']
+                print(f"Drone {self.id} received alert about threat at {target_pos}")
 
 
     def inspect_area(self):
@@ -253,36 +332,70 @@ class Robber(ap.Agent):
                     threats.append((agent.x, agent.y))
         return threats
 
-class Camera(ap.Agent):
+class Camera(CommunicatingAgent):
     def setup(self):
-        """Initialize camera at a random location"""
+        super().setup()
+        # Communication setup
+        self.roles = ["Observer", "Alerter"]
+        self.current_role = "Observer"
+        self.supported_protocols = [Protocol.SURVEILLANCE, Protocol.ASSISTANCE]
+        self.supported_acts = [
+            CommunicationAct.ALERT_THREAT,
+            CommunicationAct.REQUEST_ASSISTANCE
+        ]
+        
+        # Original camera setup
         self.x = random.randint(0, self.model.grid_size - 1)
         self.y = random.randint(0, self.model.grid_size - 1)
-        self.height = random.randint(3, 8)  # Random height between 3-8 units
+        self.height = random.randint(3, 8)
         self.detection_radius = 3
         self.last_detection_time = 0
         self.detected_agents = set()
 
     def detect_movement(self, drone):
-        """Detect if the drone is within the detection radius"""
+        """Detect if the drone is within the detection radius and communicate"""
         distance = np.sqrt((self.x - drone.x)**2 + (self.y - drone.y)**2)
         if distance <= self.detection_radius:
-            print(f"Camera {self.id} detected movement of Drone {drone.id}.")
+            print(f"Camera {self.id} detected movement of Drone {drone.id}")
+            self.current_role = "Alerter"
+            self.send_message(
+                drone,
+                Protocol.SURVEILLANCE,
+                CommunicationAct.ALERT_THREAT,
+                {'location': (self.x, self.y)}
+            )
             return True
         return False
 
-class SecurityPersonnel(ap.Agent):
+class SecurityPersonnel(CommunicatingAgent):
     def setup(self):
-        """Initialize security personnel parameters"""
+        super().setup()
+        # Communication setup
+        self.roles = ["Controller", "Pursuer"]
+        self.current_role = "Controller"
+        self.supported_protocols = [Protocol.CONTROL, Protocol.PURSUIT, Protocol.VISION]
+        self.supported_acts = [
+            CommunicationAct.REQUEST_CONTROL,
+            CommunicationAct.COORDINATE_PURSUIT
+        ]
+        
+        # Original security setup
         self.x = random.randint(0, self.model.grid_size-1)
         self.y = random.randint(0, self.model.grid_size-1)
-        self.height = 3  # Fixed height for security personnel
+        self.height = 3
         self.has_drone_control = False
         self.chasing_robber = False
         self.target_robber = None
         self.alerted_to_robber = False
         self.movement_speed = 1
         self.collision_threshold = 1
+
+    def handle_message(self, message):
+        if message.protocol == Protocol.VISION:
+            if message.comm_act == CommunicationAct.REPORT_VISION:
+                print(f"Security {self.id} received vision report from Drone {message.sender.id}")
+                if 'robber' in message.content:
+                    self.take_drone_control(message.sender)
     
     def check_collision(self, new_x, new_y):
         """Check if moving to new position would cause collision"""
@@ -311,10 +424,16 @@ class SecurityPersonnel(ap.Agent):
                 print(f"Security {self.id} patrolling at ({self.x}, {self.y}, height: {self.height})")
 
     def take_drone_control(self, drone):
-        """Take control of a drone"""
-        if not drone.is_controlled_by_security:
-            drone.is_controlled_by_security = True
-            print(f"Security personnel {self.id} took control of Drone {drone.id}.")
+        """Take control of a drone with communication"""
+        self.current_role = "Controller"
+        self.send_message(
+            drone,
+            Protocol.CONTROL,
+            CommunicationAct.REQUEST_CONTROL,
+            {'control_status': True}
+        )
+        self.has_drone_control = True
+        print(f"Security {self.id} requested control of Drone {drone.id}")
 
     def release_drone_control(self, drone):
         """Release control of a drone"""
@@ -381,6 +500,10 @@ class SurveillanceModel(ap.Model):
     def step(self):
         """Perform one step of the simulation"""
         self.current_step += 1
+
+        for agent in self.agents:
+            if isinstance(agent, CommunicatingAgent):
+                agent.process_messages()
         
         # Mover robbers activos
         for robber in self.robbers:
@@ -501,8 +624,9 @@ parameters = {
     'num_cameras': 3,
     'num_robbers': 2,
     'num_watchers': 2,
-    'steps': 100
+    'steps': 50
 }
+
 model = SurveillanceModel(parameters)
 model.setup()
 
@@ -519,6 +643,178 @@ def reset_simulation():
     model.setup()
     model.current_step = 0  # Reinicia correctamente el contador
     return jsonify({"message": "Simulation reset successful"})
+
+def generate_scene_description(robber_contours, police_contours, drone):
+    description = "Drone's Visual Analysis:\n"
+    
+    # Describe drone's position
+    description += f"I am currently flying at position ({drone.x}, {drone.y}) at a height of {drone.height} units. "
+    
+    # Describe what's in view
+    if len(robber_contours) == 0 and len(police_contours) == 0:
+        description += "My cameras are not detecting any significant movement or suspicious activity in the area.\n"
+    else:
+        if len(robber_contours) > 0:
+            if len(robber_contours) == 1:
+                description += "I have identified a suspicious individual wearing a black cap. "
+            else:
+                description += f"I can see {len(robber_contours)} individuals with black caps, potentially suspects. "
+        
+        if len(police_contours) > 0:
+            if len(police_contours) == 1:
+                description += "There is one police officer in navy uniform within my field of view. "
+            else:
+                description += f"I can see {len(police_contours)} police officers patrolling the area. "
+        
+        # Add relative positions if detected
+        if len(robber_contours) > 0:
+            robber_positions = [cv2.boundingRect(c) for c in robber_contours]
+            left_side = any(x < 128 for x, _, _, _ in robber_positions)
+            right_side = any(x >= 128 for x, _, _, _ in robber_positions)
+            if left_side and right_side:
+                description += "\nSuspects are spread across my field of view. "
+            elif left_side:
+                description += "\nSuspects are primarily on the left side of my view. "
+            else:
+                description += "\nSuspects are primarily on the right side of my view. "
+        
+        # Add action description
+        if not drone.is_controlled_by_security:
+            description += "\nMaintaining routine surveillance pattern."
+        else:
+            description += "\nCurrently under security control, tracking suspicious activity."
+    
+    return description
+
+@app.route('/process-vision', methods=['POST'])
+def process_vision():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image provided'}), 400
+        
+    image_file = request.files['image']
+    image_bytes = image_file.read()
+    
+    try:
+        img_array = np.frombuffer(image_bytes, dtype=np.uint8)
+        img_array = img_array.reshape((256, 256, 3))
+        hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
+        
+        # Define color ranges for robber (black cap and brown skin)
+        robber_black_lower = np.array([0, 0, 0])
+        robber_black_upper = np.array([180, 255, 30])
+        
+        robber_brown_lower = np.array([10, 50, 50])
+        robber_brown_upper = np.array([20, 255, 200])
+        
+        robber_black_mask = cv2.inRange(hsv, robber_black_lower, robber_black_upper)
+        robber_brown_mask = cv2.inRange(hsv, robber_brown_lower, robber_brown_upper)
+        
+        # Detect robber where we see both black and brown
+        robber_kernel = np.ones((5,5), np.uint8)
+        robber_black_mask = cv2.dilate(robber_black_mask, robber_kernel, iterations=2)
+        robber_brown_mask = cv2.dilate(robber_brown_mask, robber_kernel, iterations=2)
+        robber_mask = cv2.bitwise_and(robber_black_mask, robber_brown_mask)
+        
+        # Police detection (navy blue and yellow)
+        police_blue_lower = np.array([100, 50, 50])
+        police_blue_upper = np.array([130, 255, 150])
+        police_yellow_lower = np.array([20, 100, 100])
+        police_yellow_upper = np.array([30, 255, 255])
+        
+        police_blue_mask = cv2.inRange(hsv, police_blue_lower, police_blue_upper)
+        police_yellow_mask = cv2.inRange(hsv, police_yellow_lower, police_yellow_upper)
+        
+        police_kernel = np.ones((5,5), np.uint8)
+        police_blue_mask = cv2.dilate(police_blue_mask, police_kernel, iterations=2)
+        police_yellow_mask = cv2.dilate(police_yellow_mask, police_kernel, iterations=2)
+        police_mask = cv2.bitwise_and(police_blue_mask, police_yellow_mask)
+        
+        # Find contours
+        min_contour_area = 50
+        robber_contours, _ = cv2.findContours(robber_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        robber_contours = [c for c in robber_contours if cv2.contourArea(c) > min_contour_area]
+        
+        police_contours, _ = cv2.findContours(police_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        police_contours = [c for c in police_contours if cv2.contourArea(c) > min_contour_area]
+        
+        # Generate scene description
+        drone = model.drones[0]
+        scene_description = generate_scene_description(robber_contours, police_contours, drone)
+        print("\n" + scene_description)
+        
+        # Create detection report
+        detections = []
+        if len(robber_contours) > 0:
+            for i, contour in enumerate(robber_contours):
+                area = cv2.contourArea(contour)
+                x, y, w, h = cv2.boundingRect(contour)
+                detections.append({
+                    'type': 'robber',
+                    'id': i+1,
+                    'position': (x, y),
+                    'area': area
+                })
+                print(f"- Robber {i+1} detected: Area = {area:.2f}, Position = ({x}, {y})")
+        
+        if len(police_contours) > 0:
+            for i, contour in enumerate(police_contours):
+                area = cv2.contourArea(contour)
+                x, y, w, h = cv2.boundingRect(contour)
+                detections.append({
+                    'type': 'police',
+                    'id': i+1,
+                    'position': (x, y),
+                    'area': area
+                })
+                print(f"- Police {i+1} detected: Area = {area:.2f}, Position = ({x}, {y})")
+        
+        # Use communication system for detections
+        if detections and model.drones:
+            drone = model.drones[0]
+            drone.send_message(
+                model.security[0],  # Send to first security personnel
+                Protocol.VISION,
+                CommunicationAct.REPORT_VISION,
+                {
+                    'detections': detections,
+                    'drone_position': (drone.x, drone.y, drone.height)
+                }
+            )
+            
+            # If robbers detected, security will handle through message system
+            robber_detections = [d for d in detections if d['type'] == 'robber']
+            if robber_detections and not drone.is_controlled_by_security:
+                # Security will request control through message system
+                model.security[0].take_drone_control(drone)
+                
+                if model.security[0].assess_threat(drone):
+                    nearest_robber = None
+                    min_distance = float('inf')
+                    
+                    for robber in model.robbers:
+                        if not robber.is_caught:
+                            distance = np.sqrt((drone.x - robber.x)**2 + (drone.y - robber.y)**2)
+                            if distance < min_distance:
+                                min_distance = distance
+                                nearest_robber = robber
+                    
+                    if nearest_robber:
+                        print(f"- Pursuing robber at ({nearest_robber.x}, {nearest_robber.y})")
+                        drone.x = max(0, min(model.grid_size - 1, nearest_robber.x))
+                        drone.y = max(0, min(model.grid_size - 1, nearest_robber.y))
+                        
+                        if min_distance <= 1:
+                            print(f"- Robber {nearest_robber.id} caught!")
+                            nearest_robber.is_caught = True
+                            model.robbers_to_remove.add(nearest_robber)
+                            model.security[0].release_drone_control(drone)
+        
+        print("--------------------")
+        return jsonify({'status': 'success', 'message': 'Image processed successfully'})
+        
+    except Exception as e:
+        print(f"Error processing image: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=False)
