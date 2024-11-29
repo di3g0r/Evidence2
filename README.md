@@ -88,8 +88,8 @@ The system implements FIPA-compliant communication protocols for:
 ## Project Resources
 
 ### Documentation
-- Technical Documentation: [Link]
-- Installation Guide: [Link]
+- Technical Documentation: [Link](https://docs.google.com/document/d/1rUDqjiK7-KDJswpGRiRSVyGYKACJQuPOj3WiJMhQibI/edit?usp=sharing)
+- Installation Guide: [Link](https://docs.google.com/document/d/1md2izcdZV1MljagRqIuXjF7du41Hkyto-3n2KENwN5k/edit?usp=sharing)
 
 ### Media
 - Demo Video: [Link]
