@@ -86,7 +86,7 @@ The system implements FIPA-compliant communication protocols for:
 
 ### Media
 - Demo Video: [Link]
-- Presentation: [Link]
+- Presentation: [Link](https://www.canva.com/design/DAGX0D9-HY0/L8idS2YYozzoWbuA-nr_Xw/edit?utm_content=DAGX0D9-HY0&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
 
 ### Unity Project and Server File
 - [Link to Drive](https://drive.google.com/drive/folders/1LwzeK-e7mb2bxrK4boZpVSBnVRqmc2fw?usp=sharing)
