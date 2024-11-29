@@ -71,12 +71,6 @@ AC = Number of unique grid cells visited / Total number of grid cells
 ```
 Evaluates the effectiveness of the patrol pattern and surveillance coverage.
 
-### 3. Chase Success Rate (CSR)
-```
-CSR = Number of successful chases / Number of chase attempts
-```
-Assesses the system's ability to maintain surveillance on detected threats.
-
 ## Communication Protocols
 The system implements FIPA-compliant communication protocols for:
 - Threat Detection Protocol
