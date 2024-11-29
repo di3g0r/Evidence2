@@ -6,7 +6,14 @@ A coordinated surveillance system simulation implementing multiple autonomous ag
 - **Diego Alejandro Calvario Aceves A01642806**  
 - **Diego Rodríguez Romero A01741413**  
 - **Milan Alejandro De Alba Gómez A01637667**  
-- **Gonzalo Calderón Gil Leyva A01740008** 
+- **Gonzalo Calderón Gil Leyva A01740008**
+
+## Repository Organization
+- Documentation: The Documentation folder contains all the Docs related to the Evidence, those corresponfing to the Final Evidence have Final in its name.
+- Diagrams: PDFs for the class and sequence diagrams used in the documentation.
+- Presentation: PDF of our final presentation.
+- Graphs: Scripts and images of the Graphs that represent our sucess metrics.
+- Scripts: All the scritps of our simulation (Python server and Unity scripts), those corresponfing to the Final Evidence have Final in its name.
 
 ## Project Overview
 This project addresses the challenge of coordinated patrolling in urban security environments. Through a multi-agent system simulation, we demonstrate how different surveillance entities collaborate to monitor risk zones, detect threats, and coordinate responses efficiently.
