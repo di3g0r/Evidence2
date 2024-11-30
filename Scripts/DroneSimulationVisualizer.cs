@@ -1,8 +1,10 @@
 using Newtonsoft.Json;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.UIElements;
 
 public class DroneSimulationVisualizer : MonoBehaviour
 {
@@ -15,14 +17,27 @@ public class DroneSimulationVisualizer : MonoBehaviour
     public GameObject robberPrefab;
     public GameObject securityPrefab; // Prefab para el personal de seguridad
     public GameObject landingZonePrefab;
+    private GameObject landingZoneObject;
+
+    [Header("Wall Settings")]
+    public GameObject wallPrefab; // Prefab para las paredes
+    public float wallHeight = 5.0f; // Altura de las paredes
 
     [Header("Landing Zone Settings")]
     private List<GameObject> landingZoneObjects = new List<GameObject>();
 
+    [Header("Post Settings")]
+    public GameObject postPrefab; // Prefab para los postes
+    public float postHeight = 5.0f; // Altura de los postes
+
+    [Header("Scenery")]
+    public GameObject[] sceneryPrefabs;
+    public int numberOfSceneryObjects = 20;
+
     [Header("Grid Settings")]
     public GameObject gridParent;
     public Material gridLineMaterial;
-    public Material detectionRangeMaterial; // Material para las esferas de detecci n
+    public Material detectionRangeMaterial; // Material para las esferas de detecci�n
     public float cellSize = 1.0f;
     private int gridSize = 20;
 
@@ -40,64 +55,142 @@ public class DroneSimulationVisualizer : MonoBehaviour
     void InitializeScene()
     {
         Debug.Log("Starting InitializeScene");
-    
-        // Check if prefab is assigned
-        if (dronePrefab != null)
-        {
-            Debug.Log($"Drone prefab is assigned: {dronePrefab.name}");
-            
-            // Check prefab for DroneVision before instantiation
-            DroneVision prefabVision = dronePrefab.GetComponent<DroneVision>();
-            if (prefabVision != null)
-            {
-                Debug.Log("DroneVision found on prefab");
-            }
-            else
-            {
-                Debug.LogError("DroneVision NOT found on prefab!");
-            }
 
-            // Instantiate the drone
-            droneObject = Instantiate(dronePrefab, Vector3.zero, Quaternion.identity);
-            Debug.Log($"Drone instantiated: {droneObject.name}");
-            
-            // Check instantiated object
-            DroneVision vision = droneObject.GetComponent<DroneVision>();
-            if (vision != null)
-            {
-                Debug.Log("DroneVision component found on instantiated drone");
-            }
-            else
-            {
-                Debug.LogError("DroneVision component NOT found on instantiated drone!");
-                
-                // List all components to debug
-                Component[] components = droneObject.GetComponents<Component>();
-                Debug.Log("Components on instantiated drone:");
-                foreach (Component comp in components)
-                {
-                    Debug.Log($"- {comp.GetType().Name}");
-                }
-            }
-            
-            // Check camera
-            Camera cam = droneObject.GetComponentInChildren<Camera>();
-            if (cam != null)
-            {
-                Debug.Log("Camera found in drone children");
-            }
-            else
-            {
-                Debug.LogError("No Camera found in drone children!");
-            }
-        }
-        else
+        if (dronePrefab == null)
         {
             Debug.LogError("Drone Prefab is not assigned in inspector!");
+            return;
         }
 
+        // Instanciar el dron
+        droneObject = Instantiate(dronePrefab, Vector3.zero, Quaternion.identity);
+        Debug.Log($"Drone instantiated: {droneObject.name}");
+
         GenerateGrid();
+        AddRandomScenery();
+        //GeneratePosts();
+        //GenerateWalls(); // Generar las paredes después de la cuadrícula
     }
+    /*
+    void GenerateWalls()
+    {
+        if (wallPrefab == null)
+        {
+            Debug.LogError("Wall Prefab is not assigned!");
+            return;
+        }
+
+        // Eliminar paredes existentes
+        foreach (Transform child in gridParent.transform)
+        {
+            if (child.gameObject.name.Contains("Wall"))
+            {
+                Destroy(child.gameObject);
+            }
+        }
+
+        float gridSizeWorld = gridSize * cellSize;
+
+        // Coordenadas para paredes horizontales (frontal y trasera)
+        Vector3 frontWallPosition = new Vector3(gridSizeWorld / 2, 5, 0);
+        Vector3 backWallPosition = new Vector3(gridSizeWorld / 2, 5, 20);
+
+        // Coordenadas para paredes verticales (izquierda y derecha)
+        Vector3 leftWallPosition = new Vector3(1f, 5f, 10);
+        Vector3 rightWallPosition = new Vector3(20f, 5f, 10);
+
+        // Escalas ajustadas
+        Vector3 horizontalWallScale = new Vector3(10, 5, 5); // Largo en X
+        Vector3 verticalWallScale = new Vector3(10, 5, 5);    // Largo en Z
+
+        // Crear y rotar paredes horizontales
+        GameObject frontWall = Instantiate(wallPrefab, frontWallPosition, Quaternion.identity, gridParent.transform);
+        frontWall.transform.localScale = horizontalWallScale; // Largo horizontal
+        frontWall.transform.rotation = Quaternion.Euler(90, 0, 0); // Sin rotación
+        frontWall.name = "Front Wall";
+
+        GameObject backWall = Instantiate(wallPrefab, backWallPosition, Quaternion.identity, gridParent.transform);
+        backWall.transform.localScale = horizontalWallScale; // Largo horizontal
+        backWall.transform.rotation = Quaternion.Euler(90, 0, 0); // Sin rotación
+        backWall.name = "Back Wall";
+
+        // Crear y rotar paredes verticales
+        GameObject leftWall = Instantiate(wallPrefab, leftWallPosition, Quaternion.identity, gridParent.transform);
+        leftWall.transform.localScale = verticalWallScale; // Largo vertical
+        leftWall.transform.rotation = Quaternion.Euler(90, 0, 90); // Girar para alinearse a 
+        leftWall.name = "Left Wall";
+
+        GameObject rightWall = Instantiate(wallPrefab, rightWallPosition, Quaternion.identity, gridParent.transform);
+        rightWall.transform.localScale = verticalWallScale; // Largo vertical
+        rightWall.transform.rotation = Quaternion.Euler(90, 0, 90); // Girar para alinearse a 
+        rightWall.name = "Right Wall";
+    }
+    */
+
+    void GeneratePosts()
+    {
+        if (postPrefab == null)
+        {
+            Debug.LogError("Post Prefab is not assigned!");
+            return;
+        }
+
+        // Eliminar postes existentes
+        foreach (Transform child in gridParent.transform)
+        {
+            if (child.gameObject.name.Contains("Post"))
+            {
+                Destroy(child.gameObject);
+            }
+        }
+
+        float gridSizeWorld = gridSize * cellSize;
+
+        // Generar postes en las esquinas
+        Vector3[] postPositions = new Vector3[]
+        {
+        new Vector3(0, postHeight / 2, 0),
+        new Vector3(gridSizeWorld, postHeight / 2, 0),
+        new Vector3(0, postHeight / 2, gridSizeWorld),
+        new Vector3(gridSizeWorld, postHeight / 2, gridSizeWorld)
+        };
+
+        for (int i = 0; i < postPositions.Length; i++)
+        {
+            GameObject post = Instantiate(postPrefab, postPositions[i], Quaternion.identity, gridParent.transform);
+            post.transform.localScale = new Vector3(0.5f, postHeight, 0.5f);
+            post.name = $"Post_{i + 1}";
+        }
+    }
+
+    void AddRandomScenery()
+    {
+        if (sceneryPrefabs == null || sceneryPrefabs.Length == 0)
+        {
+            Debug.LogWarning("No scenery prefabs assigned.");
+            return;
+        }
+
+        for (int i = 0; i < numberOfSceneryObjects; i++)
+        {
+            float x = UnityEngine.Random.Range(0, gridSize * cellSize);
+            float z = UnityEngine.Random.Range(0, gridSize * cellSize);
+            Vector3 position = new Vector3(x, 0, z);
+
+            GameObject prefab = sceneryPrefabs[UnityEngine.Random.Range(0, sceneryPrefabs.Length)];
+            GameObject sceneryObject = Instantiate(prefab, position, Quaternion.identity, gridParent.transform);
+
+            // Rotación aleatoria en el eje Y
+            sceneryObject.transform.rotation = Quaternion.Euler(0, UnityEngine.Random.Range(0, 360), 0);
+
+            // Escala aleatoria (opcional)
+            float scale = UnityEngine.Random.Range(0.8f, 1.2f);
+            sceneryObject.transform.localScale *= scale;
+
+            sceneryObject.name = $"SceneryObject_{i}";
+        }
+    }
+
 
     IEnumerator FetchSimulationStateLoop()
     {
@@ -141,19 +234,19 @@ public class DroneSimulationVisualizer : MonoBehaviour
 
     void UpdateVisualization(SimulationState state)
     {
-        // Actualizaci n del dron
+        // Actualizaci�n del dron
         UpdateDrones(state.drones);
 
-        // Actualizaci n de c maras
+        // Actualizaci�n de c�maras
         UpdateCameras(state.cameras);
 
-        // Actualizaci n de ladrones
+        // Actualizaci�n de ladrones
         UpdateRobbers(state.robbers);
 
-        // Actualizaci n de personal de seguridad
+        // Actualizaci�n de personal de seguridad
         UpdateSecurity(state.watchers);
 
-        // Actualizaci n de zonas de aterrizaje
+        // Actualizaci�n de zonas de aterrizaje
         UpdateLandingZones(state.landing_stations);
     }
 
@@ -162,151 +255,227 @@ public class DroneSimulationVisualizer : MonoBehaviour
         if (drones != null && drones.Length > 0)
         {
             var firstDrone = drones[0];
+            Vector3 targetPosition = new Vector3(
+                firstDrone.x * cellSize,
+                firstDrone.height * cellSize,
+                firstDrone.y * cellSize
+            );
+
             if (droneObject != null && (firstDrone.is_flying || firstDrone.height > 0))
             {
-                droneObject.transform.position = new Vector3(
-                    firstDrone.x * cellSize,
-                    firstDrone.height * cellSize,
-                    firstDrone.y * cellSize
-                );
-                Debug.Log($"Drone Position Updated: ({firstDrone.x}, {firstDrone.y}, {firstDrone.height})");
+                StartCoroutine(SmoothMove(droneObject, targetPosition, 0.5f)); // Movimiento a velocidad 2.5f
             }
         }
     }
 
+    private Dictionary<int, GameObject> cameraObjectsDict = new Dictionary<int, GameObject>();
+    private Dictionary<int, GameObject> postObjectsDict = new Dictionary<int, GameObject>();
+
     void UpdateCameras(CameraState[] cameras)
     {
-        foreach (GameObject cam in cameraObjects)
-        {
-            Destroy(cam);
-        }
-        cameraObjects.Clear();
-
+        HashSet<int> currentCameraIds = new HashSet<int>();
         if (cameras != null)
         {
             foreach (var cam in cameras)
             {
-                if (cameraPrefab != null)
+                currentCameraIds.Add(cam.id);
+                if (cameraObjectsDict.ContainsKey(cam.id))
                 {
-                    GameObject cameraObject = Instantiate(
-                        cameraPrefab,
-                        new Vector3(cam.x * cellSize, cellSize / 2, cam.y * cellSize),
-                        Quaternion.identity
-                    );
-                    cameraObjects.Add(cameraObject);
+                    // Actualizar posición de cámaras y postes existentes
+                    GameObject existingCamera = cameraObjectsDict[cam.id];
+                    GameObject existingPost = postObjectsDict[cam.id];
+                    float cameraHeight = 3.0f;
+                    Vector3 position = new Vector3(cam.x * cellSize, 0, cam.y * cellSize);
 
-                    // Genera una esfera proporcional para visualizar el rango de detecci n
-                    if (detectionRangeMaterial != null)
-                    {
-                        GameObject detectionSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                        detectionSphere.transform.position = new Vector3(cam.x * cellSize, 0.1f, cam.y * cellSize);
-                        detectionSphere.transform.localScale = new Vector3(
-                            cam.detection_radius * 2 * cellSize,
-                            0.1f,
-                            cam.detection_radius * 2 * cellSize
-                        ); // Aplanada para no cubrir la vista
-                        detectionSphere.GetComponent<Renderer>().material = detectionRangeMaterial;
-                        Destroy(detectionSphere.GetComponent<Collider>()); // Elimina el collider
-                        Destroy(detectionSphere, 1.0f); // Destruye la esfera despu s de 1 segundo
-                    }
+                    existingCamera.transform.position = new Vector3(position.x, cameraHeight, position.z);
+                    existingPost.transform.position = position;
                 }
                 else
                 {
-                    Debug.LogError("Camera Prefab is not assigned.");
+                    // Crear nueva cámara y poste si no existen
+                    if (cameraPrefab != null && postPrefab != null)
+                    {
+                        float cameraHeight = 3.0f;
+                        Vector3 position = new Vector3(cam.x * cellSize, 0, cam.y * cellSize);
+
+                        // Crear poste
+                        GameObject postObject = Instantiate(postPrefab, position, Quaternion.identity);
+                        postObject.name = $"Post_{cam.id}";
+                        postObjectsDict[cam.id] = postObject;
+
+                        // Crear cámara
+                        GameObject cameraObject = Instantiate(cameraPrefab, new Vector3(position.x, cameraHeight, position.z), Quaternion.identity);
+                        cameraObject.name = $"Camera_{cam.id}";
+                        cameraObject.transform.SetParent(postObject.transform);
+
+                        // Hacer que la cámara mire hacia el centro
+                        if (landingZoneObject != null)
+                        {
+                            cameraObject.transform.LookAt(landingZoneObject.transform);
+                        }
+
+                        // Agregar la cámara y el poste al diccionario
+                        cameraObjectsDict[cam.id] = cameraObject;
+                    }
+                    else
+                    {
+                        Debug.LogError("Camera Prefab or Post Prefab is not assigned.");
+                    }
                 }
             }
         }
+
+        // Limpieza: Eliminar cámaras y postes que ya no están en la lista de estados
+        var keysToRemove = new List<int>();
+        foreach (var cameraId in cameraObjectsDict.Keys)
+        {
+            if (!currentCameraIds.Contains(cameraId))
+            {
+                Destroy(cameraObjectsDict[cameraId]);
+                Destroy(postObjectsDict[cameraId]);
+                keysToRemove.Add(cameraId);
+            }
+        }
+        foreach (var key in keysToRemove)
+        {
+            cameraObjectsDict.Remove(key);
+            postObjectsDict.Remove(key);
+        }
     }
+
+
+    private Dictionary<int, GameObject> robberObjectsDict = new Dictionary<int, GameObject>();
 
     void UpdateRobbers(RobberState[] robbers)
     {
-        foreach (GameObject robber in robberObjects)
-        {
-            Destroy(robber);
-        }
-        robberObjects.Clear();
+        HashSet<int> currentRobberIds = new HashSet<int>();
 
         if (robbers != null)
         {
             foreach (var robber in robbers)
             {
-                // Solo crear el objeto si el ladr n no ha sido atrapado
-                if (robberPrefab != null && !robber.is_caught)
+                currentRobberIds.Add(robber.id);
+
+                if (robberObjectsDict.ContainsKey(robber.id))
                 {
-                    GameObject robberObject = Instantiate(
-                        robberPrefab,
-                        new Vector3(robber.x * cellSize, 1, robber.y * cellSize),
-                        Quaternion.identity
-                    );
-                    robberObjects.Add(robberObject);
-                    Debug.Log($"Thief Spawned at ({robber.x}, {robber.y}).");
+                    // Actualizar posición del ladrón existente
+                    GameObject robberObject = robberObjectsDict[robber.id];
+                    if (!robber.is_caught)
+                    {
+                        Vector3 targetPosition = new Vector3(robber.x * cellSize, 1, robber.y * cellSize);
+                        StartCoroutine(SmoothMove(robberObject, targetPosition, 0.5f)); // Mover con Lerp en 0.5 segundos
+                    }
+                    else
+                    {
+                        // Si el ladrón ha sido atrapado, eliminar el objeto
+                        Destroy(robberObject);
+                        robberObjectsDict.Remove(robber.id);
+                    }
                 }
-                else if (robber.is_caught)
+                else
                 {
-                    Debug.Log($"Thief at ({robber.x}, {robber.y}) has been caught and removed.");
+                    // Crear un nuevo ladrón si no está atrapado
+                    if (robberPrefab != null && !robber.is_caught)
+                    {
+                        GameObject robberObject = Instantiate(
+                            robberPrefab,
+                            new Vector3(robber.x * cellSize, 1, robber.y * cellSize),
+                            Quaternion.identity
+                        );
+                        robberObjectsDict[robber.id] = robberObject;
+                    }
                 }
             }
         }
+
+        // Eliminar ladrones que ya no están en el estado
+        var keysToRemove = new List<int>();
+        foreach (var robberId in robberObjectsDict.Keys)
+        {
+            if (!currentRobberIds.Contains(robberId))
+            {
+                Destroy(robberObjectsDict[robberId]);
+                keysToRemove.Add(robberId);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            robberObjectsDict.Remove(key);
+        }
     }
 
+    private Dictionary<int, GameObject> securityObjectsDict = new Dictionary<int, GameObject>();
     void UpdateSecurity(WatcherState[] watchers)
     {
-        foreach (GameObject sec in securityObjects)
-        {
-            Destroy(sec);
-        }
-        securityObjects.Clear();
+        HashSet<int> currentSecurityIds = new HashSet<int>();
 
         if (watchers != null)
         {
             foreach (var guard in watchers)
             {
-                if (securityPrefab != null)
-                {
-                    GameObject securityObject = Instantiate(
-                        securityPrefab,
-                        new Vector3(guard.x * cellSize, 1, guard.y * cellSize),
-                        Quaternion.identity
-                    );
-                    securityObjects.Add(securityObject);
-                    Debug.Log($"Security Guard at ({guard.x}, {guard.y})");
+                currentSecurityIds.Add(guard.id);
 
-                    // Si quieres que se muevan, aseg rate de actualizar sus posiciones aqu 
+                Vector3 targetPosition = new Vector3(guard.x * cellSize, 1, guard.y * cellSize);
+
+                if (securityObjectsDict.ContainsKey(guard.id))
+                {
+                    GameObject securityObject = securityObjectsDict[guard.id];
+                    StartCoroutine(SmoothMove(securityObject, targetPosition, 0.5f)); // Movimiento a velocidad 2.5f
                 }
                 else
                 {
-                    Debug.LogError("Security Prefab is not assigned.");
+                    // Crear nuevo policía
+                    if (securityPrefab != null)
+                    {
+                        GameObject securityObject = Instantiate(
+                            securityPrefab,
+                            targetPosition,
+                            Quaternion.identity
+                        );
+                        securityObjectsDict[guard.id] = securityObject;
+                    }
                 }
             }
         }
+
+        // Eliminar policías que ya no están en el estado
+        var keysToRemove = new List<int>();
+        foreach (var securityId in securityObjectsDict.Keys)
+        {
+            if (!currentSecurityIds.Contains(securityId))
+            {
+                Destroy(securityObjectsDict[securityId]);
+                keysToRemove.Add(securityId);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            securityObjectsDict.Remove(key);
+        }
     }
+
+
 
     void UpdateLandingZones(int[][] landingStations)
     {
-        foreach (GameObject zone in landingZoneObjects)
+        if (landingZoneObject == null && landingStations != null && landingStations.Length > 0)
         {
-            Destroy(zone);
-        }
-        landingZoneObjects.Clear();
-
-        if (landingStations != null)
-        {
-            foreach (var station in landingStations)
+            if (landingZonePrefab != null)
             {
-                if (landingZonePrefab != null)
-                {
-                    GameObject landingZoneObject = Instantiate(
-                        landingZonePrefab,
-                        new Vector3(station[0] * cellSize, 0, station[1] * cellSize),
-                        Quaternion.identity
-                    );
-                    landingZoneObjects.Add(landingZoneObject);
-                    Debug.Log($"Landing Zone Spawned at ({station[0]}, {station[1]}).");
-                }
-                else
-                {
-                    Debug.LogError("Landing Zone Prefab is not assigned.");
-                }
+                var station = landingStations[0];
+                landingZoneObject = Instantiate(
+                    landingZonePrefab,
+                    new Vector3(station[0] * cellSize, 0, station[1] * cellSize),
+                    Quaternion.identity
+                );
+                landingZoneObject.name = "LandingZone";
+                Debug.Log($"Landing Zone Spawned at ({station[0]}, {station[1]}).");
+            }
+            else
+            {
+                Debug.LogError("Landing Zone Prefab is not assigned.");
             }
         }
     }
@@ -329,6 +498,22 @@ public class DroneSimulationVisualizer : MonoBehaviour
             renderer.material = gridLineMaterial;
         }
     }
+
+    IEnumerator SmoothMove(GameObject obj, Vector3 targetPosition, float duration)
+    {
+        Vector3 startPosition = obj.transform.position;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < duration)
+        {
+            obj.transform.position = Vector3.Lerp(startPosition, targetPosition, elapsedTime / duration);
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        obj.transform.position = targetPosition; // Asegurarse de que llegue exactamente al objetivo
+    }
+
 
     [System.Serializable]
     public class SimulationState
